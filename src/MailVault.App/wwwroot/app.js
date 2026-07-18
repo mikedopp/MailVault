@@ -240,16 +240,16 @@ function mockHost() {
   const now = Math.floor(Date.now() / 1000);
   const rows = [
     { id: 1, sender: "Google <no-reply@accounts.google.com>", subject: "Security alert", dateUtc: now - 3600, attachCount: 0, deleted: false },
-    { id: 2, sender: "Kara <kara@example.com>", subject: "Snap map screenshots from the weekend", dateUtc: now - 86400 * 2, attachCount: 3, deleted: false },
-    { id: 3, sender: "FAA <notifications@faa.gov>", subject: "Part 107 knowledge test — appointment confirmed", dateUtc: now - 86400 * 30, attachCount: 1, deleted: false },
+    { id: 2, sender: "Alex <alex@example.com>", subject: "Photos from the weekend", dateUtc: now - 86400 * 2, attachCount: 3, deleted: false },
+    { id: 3, sender: "Billing <billing@example.net>", subject: "Your March statement is ready", dateUtc: now - 86400 * 30, attachCount: 1, deleted: false },
   ];
   return {
     postMessage(m) {
       const reply = (data) => setTimeout(() => handleIncoming({ id: m.id, ok: true, data }), 30);
       switch (m.cmd) {
-        case "pickFolder": return reply("N:\\GoogleExport\\mike.dopp@gmail.com\\Gmail");
+        case "pickFolder": return reply("D:\\GmailBackup\\you@example.com\\Gmail");
         case "openFolder": case "stats":
-          return reply({ root: "N:\\GoogleExport\\mike.dopp@gmail.com\\Gmail", count: 50922, bytes: 5530000000, trashCount: 0, trashBytes: 0, withAttachments: 8120 });
+          return reply({ root: "D:\\GmailBackup\\you@example.com\\Gmail", count: 50922, bytes: 5530000000, trashCount: 0, trashBytes: 0, withAttachments: 8120 });
         case "search": return reply({ rows: rows.filter((r) => r.deleted === !!m.args.deletedView), total: 3 });
         case "getMessage": return reply({
           subject: rows.find((r) => r.id === m.args.msgId)?.subject, from: "Preview <preview@mailvault.local>",
