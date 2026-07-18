@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MailVault</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <aside id="sidebar">
+    <h1>Mail<span>Vault</span></h1>
+    <button id="btnOpen" class="primary">Open backup folder…</button>
+    <div id="stats" class="stats"></div>
+
+    <nav>
+      <button class="navbtn active" data-view="all">📥 Archive</button>
+      <button class="navbtn" data-view="trash">🗑 Trash <span id="trashCount"></span></button>
+    </nav>
+
+    <div class="filters">
+      <label>From contains
+        <input id="fFrom" type="text" placeholder="sender…">
+      </label>
+      <label>After
+        <input id="fDateFrom" type="date">
+      </label>
+      <label>Before
+        <input id="fDateTo" type="date">
+      </label>
+      <label class="check">
+        <input id="fHasAttach" type="checkbox"> Has attachments
+      </label>
+      <button id="btnClearFilters">Clear filters</button>
+    </div>
+
+    <div class="sidebar-footer">
+      <button id="btnReindex">Re-index folder</button>
+      <button id="btnPurge" class="danger">Empty trash…</button>
+    </div>
+  </aside>
+
+  <main id="main">
+    <div id="toolbar">
+      <input id="search" type="search" placeholder="Search everything — subject, sender, body, attachments…  (Enter)">
+      <select id="sort">
+        <option value="dateDesc">Newest first</option>
+        <option value="dateAsc">Oldest first</option>
+        <option value="sender">Sender A–Z</option>
+        <option value="subject">Subject A–Z</option>
+        <option value="sizeDesc">Largest first</option>
+      </select>
+      <div id="selActions" class="hidden">
+        <span id="selCount"></span>
+        <button id="btnDelete" class="danger">Delete</button>
+        <button id="btnRestore" class="hidden">Restore</button>
+      </div>
+    </div>
+    <div id="indexbar" class="hidden"><div id="indexfill"></div><span id="indextext"></span></div>
+    <div id="resultmeta"></div>
+    <div id="list"></div>
+    <button id="btnMore" class="hidden">Load more</button>
+  </main>
+
+  <section id="reader">
+    <div id="readerEmpty">Select a message</div>
+    <div id="readerContent" class="hidden">
+      <div id="rSubject"></div>
+      <div class="rmeta">
+        <div><b>From:</b> <span id="rFrom"></span></div>
+        <div><b>To:</b> <span id="rTo"></span></div>
+        <div id="rCcRow"><b>Cc:</b> <span id="rCc"></span></div>
+        <div><b>Date:</b> <span id="rDate"></span></div>
+      </div>
+      <div id="rAttachments"></div>
+      <div class="ractions">
+        <button id="btnOpenEml">Open .eml</button>
+      </div>
+      <iframe id="rBody" sandbox=""></iframe>
+    </div>
+  </section>
+</div>
+<script src="app.js"></script>
+</body>
+</html>
