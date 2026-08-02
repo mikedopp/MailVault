@@ -17,8 +17,11 @@ public sealed class MainForm : Form
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
     };
 
-    public MainForm()
+    private readonly string? _startFolder;
+
+    public MainForm(string? startFolder = null)
     {
+        _startFolder = startFolder;
         Text = "MailVault — offline Gmail archive viewer";
         Width = 1400;
         Height = 900;
@@ -38,7 +41,20 @@ public sealed class MainForm : Form
             "mailvault.local", wwwroot, CoreWebView2HostResourceAccessKind.Allow);
         _web.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
         _web.CoreWebView2.WebMessageReceived += OnWebMessage;
+        if (_startFolder is not null)
+        {
+            _web.CoreWebView2.NavigationCompleted += OnFirstNavigation;
+        }
         _web.CoreWebView2.Navigate("https://mailvault.local/index.html");
+    }
+
+    /// <summary>Auto-open the folder passed on the command line, once the UI is live.</summary>
+    private void OnFirstNavigation(object? sender, CoreWebView2NavigationCompletedEventArgs e)
+    {
+        _web.CoreWebView2.NavigationCompleted -= OnFirstNavigation;
+        if (!e.IsSuccess || _startFolder is null) return;
+        var json = JsonSerializer.Serialize(_startFolder);
+        _web.CoreWebView2.ExecuteScriptAsync($"window.openFolderFromHost({json});");
     }
 
     private async void OnWebMessage(object? sender, CoreWebView2WebMessageReceivedEventArgs e)

@@ -170,6 +170,14 @@ $("btnOpen").addEventListener("click", async () => {
 
 $("btnReindex").addEventListener("click", () => state.folderOpen && rpc("reindex"));
 
+// Called by the host when a folder was passed on the command line.
+window.openFolderFromHost = async (path) => {
+  const stats = await rpc("openFolder", { path });
+  state.folderOpen = true;
+  showStats(stats);
+  refresh();
+};
+
 $("search").addEventListener("keydown", (e) => {
   if (e.key === "Enter") { state.query = e.target.value.trim(); refresh(); }
 });

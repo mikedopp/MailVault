@@ -13,8 +13,11 @@ internal static class Program
         if (args.Length >= 2 && args[0] == "--smoke")
             return Smoke(args[1], args.Contains("--force"));
 
+        // MailVault.exe <folder>  opens that archive immediately
+        var startFolder = args.Length == 1 && Directory.Exists(args[0]) ? args[0] : null;
+
         ApplicationConfiguration.Initialize();
-        Application.Run(new MainForm());
+        Application.Run(new MainForm(startFolder));
         return 0;
     }
 
