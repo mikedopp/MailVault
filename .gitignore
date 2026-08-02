@@ -1,5 +1,6 @@
 bin/
 obj/
+publish/
 *.user
 .vs/
 # never commit indexes or archives from real mail data

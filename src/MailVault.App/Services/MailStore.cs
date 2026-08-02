@@ -24,6 +24,7 @@ public sealed class MailStore : IDisposable
     public const string TrashDirName = "_MailVaultTrash";
 
     private SqliteConnection? _db;
+    private SqliteTransaction? _tx;
     public string? Root { get; private set; }
 
     public void Open(string folder)
@@ -37,7 +38,7 @@ public sealed class MailStore : IDisposable
         // schema v3: content-storing fts (contentless can't DELETE) + messageId
         // column so purges can be synced back to the live Gmail account
         long ver;
-        using (var v = _db.CreateCommand())
+        using (var v = Cmd())
         {
             v.CommandText = "PRAGMA user_version;";
             ver = (long)v.ExecuteScalar()!;
@@ -67,14 +68,25 @@ public sealed class MailStore : IDisposable
             """);
     }
 
-    public void Close() { _db?.Dispose(); _db = null; Root = null; }
+    public void Close() { _tx?.Dispose(); _tx = null; _db?.Dispose(); _db = null; Root = null; }
     public void Dispose() => Close();
 
     private SqliteConnection Db => _db ?? throw new InvalidOperationException("No folder open");
 
+    /// <summary>
+    /// Every command must carry the connection's active transaction, or
+    /// Microsoft.Data.Sqlite rejects it once indexing opens one.
+    /// </summary>
+    private SqliteCommand Cmd()
+    {
+        var c = Db.CreateCommand();
+        c.Transaction = _tx;
+        return c;
+    }
+
     private void Exec(string sql)
     {
-        using var cmd = Db.CreateCommand();
+        using var cmd = Cmd();
         cmd.CommandText = sql;
         cmd.ExecuteNonQuery();
     }
@@ -95,7 +107,7 @@ public sealed class MailStore : IDisposable
 
         // current index state (non-deleted rows must exist on disk)
         var known = new Dictionary<string, (long id, long mtime)>(StringComparer.OrdinalIgnoreCase);
-        using (var cmd = Db.CreateCommand())
+        using (var cmd = Cmd())
         {
             cmd.CommandText = "SELECT id, path, mtime FROM messages WHERE deleted=0";
             using var r = cmd.ExecuteReader();
@@ -107,7 +119,7 @@ public sealed class MailStore : IDisposable
         {
             if (!onDisk.ContainsKey(path))
             {
-                using var del = Db.CreateCommand();
+                using var del = Cmd();
                 del.CommandText = "DELETE FROM messages WHERE id=$id; DELETE FROM fts WHERE rowid=$id;";
                 del.Parameters.AddWithValue("$id", id);
                 del.ExecuteNonQuery();
@@ -120,20 +132,32 @@ public sealed class MailStore : IDisposable
         int done = 0, total = toIndex.Count;
         progress?.Invoke(0, total);
 
-        using var tx = Db.BeginTransaction();
-        foreach (var rel in toIndex)
+        // Batched into transactions: committing every message would fsync 50k
+        // times. Each checkpoint must REPLACE _tx - reusing the committed one
+        // throws "transaction has completed" on the next command.
+        var tx = _tx = Db.BeginTransaction();
+        try
         {
-            ct.ThrowIfCancellationRequested();
-            try { IndexOne(rel, onDisk[rel]); } catch { /* unparseable file: skip */ }
-            done++;
-            if (done % 200 == 0)
+            foreach (var rel in toIndex)
             {
-                tx.Commit(); // checkpoint so progress survives interruption
-                Db.BeginTransaction();
-                progress?.Invoke(done, total);
+                ct.ThrowIfCancellationRequested();
+                try { IndexOne(rel, onDisk[rel]); } catch { /* unparseable file: skip */ }
+                done++;
+                if (done % 500 == 0)
+                {
+                    tx.Commit();          // checkpoint so progress survives interruption
+                    tx.Dispose();
+                    tx = _tx = Db.BeginTransaction();
+                    progress?.Invoke(done, total);
+                }
             }
+            tx.Commit();
         }
-        tx.Commit();
+        finally
+        {
+            tx.Dispose();
+            _tx = null;
+        }
         progress?.Invoke(done, total);
         return (done, removed);
     }
@@ -158,7 +182,7 @@ public sealed class MailStore : IDisposable
 
         // replace any stale row for this path
         long oldId = -1;
-        using (var q = Db.CreateCommand())
+        using (var q = Cmd())
         {
             q.CommandText = "SELECT id FROM messages WHERE path=$p";
             q.Parameters.AddWithValue("$p", relPath);
@@ -166,13 +190,13 @@ public sealed class MailStore : IDisposable
         }
         if (oldId >= 0)
         {
-            using var d = Db.CreateCommand();
+            using var d = Cmd();
             d.CommandText = "DELETE FROM messages WHERE id=$id; DELETE FROM fts WHERE rowid=$id;";
             d.Parameters.AddWithValue("$id", oldId);
             d.ExecuteNonQuery();
         }
 
-        using var ins = Db.CreateCommand();
+        using var ins = Cmd();
         ins.CommandText = """
             INSERT INTO messages(path, mtime, dateUtc, subject, sender, recipients, size, attachCount, attachNames, messageId)
             VALUES($p,$m,$d,$s,$f,$r,$z,$ac,$an,$mid);
@@ -189,11 +213,11 @@ public sealed class MailStore : IDisposable
         ins.Parameters.AddWithValue("$an", string.Join("; ", attachNames));
         ins.ExecuteNonQuery();
 
-        using var last = Db.CreateCommand();
+        using var last = Cmd();
         last.CommandText = "SELECT last_insert_rowid()";
         var newId = (long)last.ExecuteScalar()!;
 
-        using var fts = Db.CreateCommand();
+        using var fts = Cmd();
         fts.CommandText = """
             INSERT INTO fts(rowid, subject, sender, recipients, body, attachNames)
             VALUES($id,$s,$f,$r,$b,$an);
@@ -256,7 +280,7 @@ public sealed class MailStore : IDisposable
 
         var whereSql = string.Join(" AND ", where);
         int total;
-        using (var cnt = Db.CreateCommand())
+        using (var cnt = Cmd())
         {
             cnt.CommandText = $"SELECT COUNT(*) FROM messages m {join} WHERE {whereSql}";
             foreach (var x in p) cnt.Parameters.Add(new SqliteParameter(x.ParameterName, x.Value));
@@ -264,7 +288,7 @@ public sealed class MailStore : IDisposable
         }
 
         var rows = new List<MessageRow>();
-        using (var cmd = Db.CreateCommand())
+        using (var cmd = Cmd())
         {
             cmd.CommandText = $"""
                 SELECT m.id, m.path, m.dateUtc, m.subject, m.sender, m.recipients,
@@ -296,7 +320,7 @@ public sealed class MailStore : IDisposable
 
     public string GetFullPath(long id)
     {
-        using var cmd = Db.CreateCommand();
+        using var cmd = Cmd();
         cmd.CommandText = "SELECT path, deleted FROM messages WHERE id=$id";
         cmd.Parameters.AddWithValue("$id", id);
         using var r = cmd.ExecuteReader();
@@ -349,7 +373,7 @@ public sealed class MailStore : IDisposable
         foreach (var id in ids)
         {
             string rel;
-            using (var q = Db.CreateCommand())
+            using (var q = Cmd())
             {
                 q.CommandText = "SELECT path FROM messages WHERE id=$id AND deleted=0";
                 q.Parameters.AddWithValue("$id", id);
@@ -360,7 +384,7 @@ public sealed class MailStore : IDisposable
             var dst = System.IO.Path.Combine(Root!, TrashDirName, rel);
             Directory.CreateDirectory(System.IO.Path.GetDirectoryName(dst)!);
             if (File.Exists(src)) File.Move(src, dst, overwrite: true);
-            using var u = Db.CreateCommand();
+            using var u = Cmd();
             u.CommandText = "UPDATE messages SET deleted=1 WHERE id=$id";
             u.Parameters.AddWithValue("$id", id);
             u.ExecuteNonQuery();
@@ -375,7 +399,7 @@ public sealed class MailStore : IDisposable
         foreach (var id in ids)
         {
             string rel;
-            using (var q = Db.CreateCommand())
+            using (var q = Cmd())
             {
                 q.CommandText = "SELECT path FROM messages WHERE id=$id AND deleted=1";
                 q.Parameters.AddWithValue("$id", id);
@@ -386,7 +410,7 @@ public sealed class MailStore : IDisposable
             var dst = System.IO.Path.Combine(Root!, rel);
             Directory.CreateDirectory(System.IO.Path.GetDirectoryName(dst)!);
             if (File.Exists(src)) File.Move(src, dst, overwrite: true);
-            using var u = Db.CreateCommand();
+            using var u = Cmd();
             u.CommandText = "UPDATE messages SET deleted=0 WHERE id=$id";
             u.Parameters.AddWithValue("$id", id);
             u.ExecuteNonQuery();
@@ -400,7 +424,7 @@ public sealed class MailStore : IDisposable
     public int PurgeTrash()
     {
         int n;
-        using (var cnt = Db.CreateCommand())
+        using (var cnt = Cmd())
         {
             cnt.CommandText = "SELECT COUNT(*) FROM messages WHERE deleted=1";
             n = Convert.ToInt32(cnt.ExecuteScalar());
@@ -409,7 +433,7 @@ public sealed class MailStore : IDisposable
         // record what is being purged so deletions can optionally be synced
         // back to the live Gmail account later (GoogleExit\Invoke-GmailSyncDeletes.ps1)
         var manifest = new StringBuilder();
-        using (var q = Db.CreateCommand())
+        using (var q = Cmd())
         {
             q.CommandText = "SELECT messageId, subject, sender, dateUtc FROM messages WHERE deleted=1";
             using var r = q.ExecuteReader();
@@ -436,7 +460,7 @@ public sealed class MailStore : IDisposable
 
     public object Stats()
     {
-        using var cmd = Db.CreateCommand();
+        using var cmd = Cmd();
         cmd.CommandText = """
             SELECT
               (SELECT COUNT(*) FROM messages WHERE deleted=0),
@@ -455,3 +479,4 @@ public sealed class MailStore : IDisposable
         };
     }
 }
+

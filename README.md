@@ -42,5 +42,20 @@ minutes); after that it's instant and incremental.
   live account: every Empty-trash appends the Message-IDs to
   `_PurgedFromArchive.jsonl`, and GoogleExit's `Invoke-GmailSyncDeletes.ps1`
   applies them server-side (dry-run + typed confirmation).
-- Headless smoke test: `MailVault.exe --smoke <folder-of-eml>` exercises
-  index/search/load/attachment/trash/restore/purge and prints SMOKE OK.
+## Headless modes
+
+```powershell
+# Read-only: index an archive and report what's in it. Safe on real mail.
+MailVault.exe --scan "N:\GoogleExport\you@gmail.com\Gmail"
+
+# Destructive self-test on a throwaway fixture (trashes + purges a message)
+MailVault.exe --smoke <folder-of-eml>
+```
+
+`--smoke` **permanently deletes a message**, so it refuses to run against any
+folder holding more than 100 `.eml` files. Use `--scan` for real archives.
+(`--force` overrides, but there's rarely a good reason.)
+
+Note: this is a WinForms exe, so PowerShell won't wait for it or capture its
+output unless you pipe it — use `| Out-String`, or `$LASTEXITCODE` will be
+meaningless and you'll see no output at all.
