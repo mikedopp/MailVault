@@ -98,7 +98,9 @@ function renderList() {
     div.innerHTML = `
       <input type="checkbox" class="cb" ${state.selected.has(r.id) ? "checked" : ""}>
       <div class="from" title="${esc(r.sender)}">${esc(r.sender) || "(unknown sender)"}</div>
-      <div class="date">${fmtDate(r.dateUtc)}</div>
+      <div class="date${r.dateInferred ? " inferred" : ""}" ${r.dateInferred
+        ? 'title="This message has a missing or implausible Date header. Shown is the file&#39;s own timestamp, used for sorting."'
+        : ""}>${r.dateInferred ? "~" : ""}${fmtDate(r.sortDate)}</div>
       <div class="subj">${r.attachCount ? '<span class="clip">📎</span> ' : ""}${esc(r.subject) || "(no subject)"}</div>`;
     div.querySelector(".cb").addEventListener("click", (e) => {
       e.stopPropagation();
@@ -247,9 +249,9 @@ on("indexError", ({ message }) => {
 function mockHost() {
   const now = Math.floor(Date.now() / 1000);
   const rows = [
-    { id: 1, sender: "Google <no-reply@accounts.google.com>", subject: "Security alert", dateUtc: now - 3600, attachCount: 0, deleted: false },
-    { id: 2, sender: "Alex <alex@example.com>", subject: "Photos from the weekend", dateUtc: now - 86400 * 2, attachCount: 3, deleted: false },
-    { id: 3, sender: "Billing <billing@example.net>", subject: "Your March statement is ready", dateUtc: now - 86400 * 30, attachCount: 1, deleted: false },
+    { id: 1, sender: "Google <no-reply@accounts.google.com>", subject: "Security alert", dateUtc: now - 3600, sortDate: now - 3600, dateInferred: false, attachCount: 0, deleted: false },
+    { id: 2, sender: "Alex <alex@example.com>", subject: "Photos from the weekend", dateUtc: now - 86400 * 2, sortDate: now - 86400 * 2, dateInferred: false, attachCount: 3, deleted: false },
+    { id: 3, sender: "Billing <billing@example.net>", subject: "Your March statement is ready", dateUtc: 0, sortDate: now - 86400 * 30, dateInferred: true, attachCount: 1, deleted: false },
   ];
   return {
     postMessage(m) {

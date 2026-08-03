@@ -82,6 +82,7 @@ nav { display: flex; flex-direction: column; gap: 4px; }
 .msg .cb { grid-row: span 2; align-self: center; }
 .msg .from { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .msg .date { color: var(--dim); font-size: 12px; white-space: nowrap; }
+.msg .date.inferred { color: #6f7480; font-style: italic; }
 .msg .subj { grid-column: 2 / 4; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px; }
 .msg .subj .clip { color: var(--gold-soft); }
 #btnMore { margin: 10px auto; display: block; }

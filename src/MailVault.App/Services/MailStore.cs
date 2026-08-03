@@ -6,7 +6,8 @@ namespace MailVault.Services;
 
 public record MessageRow(
     long Id, string Path, long DateUtc, string Subject, string Sender,
-    string Recipients, long Size, int AttachCount, string AttachNames, bool Deleted);
+    string Recipients, long Size, int AttachCount, string AttachNames, bool Deleted,
+    long SortDate, bool DateInferred);
 
 public record AttachmentInfo(int Index, string Name, string ContentType, long Size);
 
@@ -35,17 +36,18 @@ public sealed class MailStore : IDisposable
         _db = new SqliteConnection($"Data Source={dbPath}");
         _db.Open();
         Exec("PRAGMA journal_mode=WAL;");
-        // schema v3: content-storing fts (contentless can't DELETE) + messageId
-        // column so purges can be synced back to the live Gmail account
+        // schema v4: content-storing fts (contentless can't DELETE), messageId so
+        // purges can sync to the live account, and sortDate so mail with a missing
+        // or forged Date header still lands in a sane spot chronologically
         long ver;
         using (var v = Cmd())
         {
             v.CommandText = "PRAGMA user_version;";
             ver = (long)v.ExecuteScalar()!;
         }
-        if (ver != 3)
+        if (ver != 4)
         {
-            Exec("DROP TABLE IF EXISTS fts; DROP TABLE IF EXISTS messages; PRAGMA user_version=3;");
+            Exec("DROP TABLE IF EXISTS fts; DROP TABLE IF EXISTS messages; PRAGMA user_version=4;");
         }
         Exec("""
             CREATE TABLE IF NOT EXISTS messages(
@@ -60,8 +62,10 @@ public sealed class MailStore : IDisposable
                 attachCount INTEGER NOT NULL DEFAULT 0,
                 attachNames TEXT NOT NULL DEFAULT '',
                 messageId TEXT NOT NULL DEFAULT '',
+                sortDate INTEGER NOT NULL DEFAULT 0,
+                dateInferred INTEGER NOT NULL DEFAULT 0,
                 deleted INTEGER NOT NULL DEFAULT 0);
-            CREATE INDEX IF NOT EXISTS ix_messages_date ON messages(dateUtc);
+            CREATE INDEX IF NOT EXISTS ix_messages_sortdate ON messages(sortDate);
             CREATE VIRTUAL TABLE IF NOT EXISTS fts USING fts5(
                 subject, sender, recipients, body, attachNames,
                 tokenize='unicode61');
@@ -173,6 +177,16 @@ public sealed class MailStore : IDisposable
         var date = msg.Date == default ? 0 : msg.Date.ToUnixTimeSeconds();
         var size = new FileInfo(full).Length;
 
+        // Real mail contains missing Date headers and forged ones (spam dated 2611).
+        // Keep the header value as the truth for display, but sort on something
+        // plausible, falling back to the file's own timestamp.
+        var nowish = DateTimeOffset.UtcNow.AddDays(2).ToUnixTimeSeconds();
+        var floor = new DateTimeOffset(1990, 1, 1, 0, 0, 0, TimeSpan.Zero).ToUnixTimeSeconds();
+        var plausible = date >= floor && date <= nowish;
+        var sortDate = plausible
+            ? date
+            : new DateTimeOffset(File.GetLastWriteTimeUtc(full)).ToUnixTimeSeconds();
+
         var attachNames = new List<string>();
         foreach (var att in msg.Attachments)
             attachNames.Add(att is MimePart mp ? (mp.FileName ?? "unnamed") : "message.eml");
@@ -198,10 +212,12 @@ public sealed class MailStore : IDisposable
 
         using var ins = Cmd();
         ins.CommandText = """
-            INSERT INTO messages(path, mtime, dateUtc, subject, sender, recipients, size, attachCount, attachNames, messageId)
-            VALUES($p,$m,$d,$s,$f,$r,$z,$ac,$an,$mid);
+            INSERT INTO messages(path, mtime, dateUtc, subject, sender, recipients, size, attachCount, attachNames, messageId, sortDate, dateInferred)
+            VALUES($p,$m,$d,$s,$f,$r,$z,$ac,$an,$mid,$sd,$di);
             """;
         ins.Parameters.AddWithValue("$mid", msg.MessageId ?? "");
+        ins.Parameters.AddWithValue("$sd", sortDate);
+        ins.Parameters.AddWithValue("$di", plausible ? 0 : 1);
         ins.Parameters.AddWithValue("$p", relPath);
         ins.Parameters.AddWithValue("$m", mtime);
         ins.Parameters.AddWithValue("$d", date);
@@ -271,11 +287,11 @@ public sealed class MailStore : IDisposable
 
         var order = sort switch
         {
-            "dateAsc" => "m.dateUtc ASC",
-            "sender" => "m.sender COLLATE NOCASE ASC, m.dateUtc DESC",
-            "subject" => "m.subject COLLATE NOCASE ASC, m.dateUtc DESC",
+            "dateAsc" => "m.sortDate ASC",
+            "sender" => "m.sender COLLATE NOCASE ASC, m.sortDate DESC",
+            "subject" => "m.subject COLLATE NOCASE ASC, m.sortDate DESC",
             "sizeDesc" => "m.size DESC",
-            _ => "m.dateUtc DESC",
+            _ => "m.sortDate DESC",
         };
 
         var whereSql = string.Join(" AND ", where);
@@ -292,7 +308,8 @@ public sealed class MailStore : IDisposable
         {
             cmd.CommandText = $"""
                 SELECT m.id, m.path, m.dateUtc, m.subject, m.sender, m.recipients,
-                       m.size, m.attachCount, m.attachNames, m.deleted
+                       m.size, m.attachCount, m.attachNames, m.deleted,
+                       m.sortDate, m.dateInferred
                 FROM messages m {join} WHERE {whereSql}
                 ORDER BY {order} LIMIT $lim OFFSET $off
                 """;
@@ -303,7 +320,7 @@ public sealed class MailStore : IDisposable
             while (r.Read())
                 rows.Add(new MessageRow(r.GetInt64(0), r.GetString(1), r.GetInt64(2), r.GetString(3),
                     r.GetString(4), r.GetString(5), r.GetInt64(6), r.GetInt32(7), r.GetString(8),
-                    r.GetInt64(9) != 0));
+                    r.GetInt64(9) != 0, r.GetInt64(10), r.GetInt64(11) != 0));
         }
         return new SearchResult(rows, total);
     }

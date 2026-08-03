@@ -50,12 +50,12 @@ internal static class Program
             var all = store.Search(null, null, null, null, null, false, "dateDesc", 0, 5);
             Console.WriteLine($"\nNewest 5 of {all.Total:N0}:");
             foreach (var r in all.Rows)
-                Console.WriteLine($"  {DateTimeOffset.FromUnixTimeSeconds(r.DateUtc).LocalDateTime:yyyy-MM-dd}  {Trim(r.Sender, 38)}  {Trim(r.Subject, 46)}");
+                Console.WriteLine($"  {Stamp(r)}  {Trim(r.Sender, 38)}  {Trim(r.Subject, 46)}");
 
             var oldest = store.Search(null, null, null, null, null, false, "dateAsc", 0, 3);
             Console.WriteLine("\nOldest 3:");
             foreach (var r in oldest.Rows)
-                Console.WriteLine($"  {DateTimeOffset.FromUnixTimeSeconds(r.DateUtc).LocalDateTime:yyyy-MM-dd}  {Trim(r.Sender, 38)}  {Trim(r.Subject, 46)}");
+                Console.WriteLine($"  {Stamp(r)}  {Trim(r.Sender, 38)}  {Trim(r.Subject, 46)}");
 
             var big = store.Search(null, null, null, null, true, false, "sizeDesc", 0, 3);
             Console.WriteLine($"\nLargest 3 with attachments (of {big.Total:N0}):");
@@ -77,6 +77,11 @@ internal static class Program
             return 1;
         }
     }
+
+    /// <summary>Sort date, flagged with ~ when the header date was missing or implausible.</summary>
+    private static string Stamp(MailVault.Services.MessageRow r) =>
+        (r.DateInferred ? "~" : " ") +
+        DateTimeOffset.FromUnixTimeSeconds(r.SortDate).LocalDateTime.ToString("yyyy-MM-dd");
 
     private static string Trim(string s, int n) =>
         string.IsNullOrEmpty(s) ? "" : (s.Length <= n ? s.PadRight(n) : s[..(n - 1)] + "…");
