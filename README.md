@@ -9,11 +9,14 @@ WinForms + WebView2 host, vanilla-JS dark/gold UI, SQLite FTS5 index.
 ## Run
 
 ```powershell
+# open an archive directly
+MailVault.exe "N:\GoogleExport\you@gmail.com\Gmail"
+
+# or from source
 dotnet run --project src\MailVault.App
-# or build once and run bin\Debug\net8.0-windows\MailVault.exe
 ```
 
-Click **Open backup folder…** and pick e.g. `N:\GoogleExport\you@gmail.com\Gmail`.
+With no argument, click **Open backup folder…** and pick e.g. `N:\GoogleExport\you@gmail.com\Gmail`.
 First open indexes every message (progress bar; ~50k messages takes a few
 minutes); after that it's instant and incremental.
 
@@ -30,6 +33,19 @@ minutes); after that it's instant and incremental.
   `_MailVaultTrash` (inside the backup folder, original paths preserved).
   Trash view lets you Restore. **Empty trash** permanently deletes from disk
   after a confirmation dialog. Nothing is ever modified in place.
+
+## Dates in real mail
+
+Archived mail contains `Date:` headers that are missing entirely or plainly
+fabricated — this archive held spam stamped **year 2611** and messages with no
+date at all, which landed at the 1969 Unix epoch. Both wrecked chronological
+browsing.
+
+The header value is stored and displayed unchanged, because for a records
+archive the header *is* the evidence. Sorting uses a separate `sortDate` that
+falls back to the file's own timestamp whenever the header is missing or
+outside 1990..now. Those rows show a `~` prefix in muted text, so an inferred
+date is never mistaken for a real one.
 
 ## Design notes
 
