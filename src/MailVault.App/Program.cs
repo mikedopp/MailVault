@@ -7,6 +7,9 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        if (args.Length >= 4 && args[0] == "--import-takeout")
+            return ImportTakeout(args[1], args[2], args[3]);
+
         if (args.Length >= 2 && args[0] == "--scan")
             return Scan(args[1]);
 
@@ -19,6 +22,31 @@ internal static class Program
         ApplicationConfiguration.Initialize();
         Application.Run(new MainForm(startFolder));
         return 0;
+    }
+
+    private static int ImportTakeout(string input, string account, string destination)
+    {
+        try
+        {
+            var importer = new TakeoutMailImporter();
+            var result = importer.Import(input, account, destination,
+                p => Console.WriteLine($"{p.Phase} {p.Done}/{p.Total} {p.Current}"),
+                CancellationToken.None);
+
+            using var store = new MailStore();
+            store.Open(result.MailRoot);
+            var (indexed, removed) = store.IndexFolder(null, CancellationToken.None);
+            dynamic stats = store.Stats();
+            Console.WriteLine($"archives={result.Archives} mailboxes={result.Mailboxes} added={result.Added} skipped={result.Skipped} failed={result.Failed}");
+            Console.WriteLine($"indexed={indexed} removed={removed} messages={stats.count}");
+            Console.WriteLine($"receipt={result.ReceiptPath}");
+            return result.Failed == 0 ? 0 : 1;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("TAKEOUT IMPORT FAIL: " + ex.Message);
+            return 1;
+        }
     }
 
     /// <summary>Read-only: index a real archive and report what's in it. Never modifies mail.</summary>

@@ -1,7 +1,7 @@
 # MailVault
 
-Offline viewer + cleanup tool for Gmail backups made with GYB (see the
-GoogleExit repo). Point it at a folder of `.eml` files and get full-text
+Offline viewer + cleanup tool for Gmail backups made with GYB or Google
+Takeout (see the GoogleExit repo). Point it at a folder of `.eml` files and get full-text
 search, attachment viewing, and reversible cleanup — no Google, no internet.
 
 WinForms + WebView2 host, vanilla-JS dark/gold UI, SQLite FTS5 index.
@@ -19,6 +19,21 @@ dotnet run --project src\MailVault.App
 With no argument, click **Open backup folder…** and pick e.g. `N:\GoogleExport\you@gmail.com\Gmail`.
 First open indexes every message (progress bar; ~50k messages takes a few
 minutes); after that it's instant and incremental.
+
+To import Google Takeout, click **Import Takeout ZIPs…**, select every ZIP part
+from one account/export, supply the account email, and choose an archive parent.
+MailVault reads Mail `.mbox`/`.eml` entries directly from the ZIPs, writes
+individual messages under `<archive>\<account>\Gmail\Takeout\yyyy\MM`, and
+writes a JSON receipt under `Gmail\_TakeoutReceipts`. Preflight rejects detected
+multipart gaps, verifies free space, and records a SHA-256 hash for every source
+ZIP. Interrupted runs restart safely because completed messages use stable
+content-derived names. Source ZIPs are unchanged.
+
+Headless import is also available:
+
+```powershell
+MailVault.exe --import-takeout <zip-or-folder> <account> <archive-parent>
+```
 
 ## Features
 

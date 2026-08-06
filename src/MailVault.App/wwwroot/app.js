@@ -5,11 +5,12 @@ let rpcId = 0;
 const pending = new Map();
 const listeners = {};
 
-function rpc(cmd, args = {}) {
+// micdrop-message bridge: method and params map to the host cmd/args envelope.
+function rpc(method, params = {}) {
   return new Promise((resolve, reject) => {
     const id = ++rpcId;
     pending.set(id, { resolve, reject });
-    host.postMessage({ id, cmd, args });
+    host.postMessage({ id, cmd: method, args: params });
   });
 }
 function on(ev, fn) { (listeners[ev] ??= []).push(fn); }
@@ -170,6 +171,11 @@ $("btnOpen").addEventListener("click", async () => {
   refresh();
 });
 
+$("btnImportTakeout").addEventListener("click", async () => {
+  try { await rpc("importTakeout"); }
+  catch (e) { $("indextext").textContent = "Takeout import failed: " + e.message; }
+});
+
 $("btnReindex").addEventListener("click", () => state.folderOpen && rpc("reindex"));
 
 // Called by the host when a folder was passed on the command line.
@@ -245,6 +251,26 @@ on("indexError", ({ message }) => {
   $("indextext").textContent = "Index error: " + message;
 });
 
+on("takeoutStart", ({ account, archives }) => {
+  $("indexbar").classList.remove("hidden");
+  $("indexfill").style.width = "0";
+  $("indextext").textContent = `Reading ${archives} Takeout ZIP(s) for ${account}…`;
+});
+on("takeoutProgress", ({ phase, done, total, current }) => {
+  $("indexbar").classList.remove("hidden");
+  $("indexfill").style.width = total ? (done / total) * 100 + "%" : "0";
+  $("indextext").textContent = `${phase} ${done.toLocaleString()} / ${total.toLocaleString()} · ${current}`;
+});
+on("takeoutEnd", async (d) => {
+  if (d.cancelled) { $("indextext").textContent = "Takeout import cancelled."; return; }
+  if (d.error) { $("indextext").textContent = "Takeout import failed: " + d.error; return; }
+  state.folderOpen = true;
+  showStats(d.stats);
+  $("indexbar").classList.add("hidden");
+  await refresh();
+  $("resultmeta").textContent = `Takeout complete · added ${d.added.toLocaleString()} · skipped ${d.skipped.toLocaleString()} · source ${fmtBytes(d.sourceBytes)} · mail ${fmtBytes(d.mailBytes)} · receipt ${d.receiptPath}`;
+});
+
 // ---------- mock host for browser preview (not the real app) ----------
 function mockHost() {
   const now = Math.floor(Date.now() / 1000);
@@ -277,3 +303,31 @@ if (!isHosted) {
   showStats({ root: "(browser preview — mock data)", count: 50922, bytes: 5530000000, trashCount: 0, withAttachments: 8120 });
   refresh();
 }
+
+// ---------- application details flyout ----------
+(() => {
+  const versionButton = document.getElementById("versionButton");
+  const flyout = document.getElementById("appFlyout");
+  const scrim = document.getElementById("flyoutScrim");
+  const closeButton = document.getElementById("closeAppFlyout");
+  if (!versionButton || !flyout || !scrim || !closeButton) return;
+  const close = (returnFocus) => {
+    flyout.setAttribute("aria-hidden", "true");
+    versionButton.setAttribute("aria-expanded", "false");
+    scrim.hidden = true;
+    document.body.classList.remove("has-flyout");
+    if (returnFocus) versionButton.focus();
+  };
+  versionButton.addEventListener("click", () => {
+    flyout.setAttribute("aria-hidden", "false");
+    versionButton.setAttribute("aria-expanded", "true");
+    scrim.hidden = false;
+    document.body.classList.add("has-flyout");
+    closeButton.focus();
+  });
+  closeButton.addEventListener("click", () => close(true));
+  scrim.addEventListener("click", () => close(true));
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && flyout.getAttribute("aria-hidden") === "false") close(true);
+  });
+})();

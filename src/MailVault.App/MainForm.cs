@@ -11,6 +11,7 @@ public sealed class MainForm : Form
     private readonly WebView2 _web = new() { Dock = DockStyle.Fill };
     private readonly MailStore _store = new();
     private CancellationTokenSource? _indexCts;
+    private CancellationTokenSource? _importCts;
 
     private static readonly JsonSerializerOptions JsonOpts = new()
     {
@@ -28,7 +29,7 @@ public sealed class MainForm : Form
         StartPosition = FormStartPosition.CenterScreen;
         Controls.Add(_web);
         Load += async (_, _) => await InitAsync();
-        FormClosed += (_, _) => { _indexCts?.Cancel(); _store.Dispose(); };
+        FormClosed += (_, _) => { _indexCts?.Cancel(); _importCts?.Cancel(); _store.Dispose(); };
     }
 
     private async Task InitAsync()
@@ -100,6 +101,61 @@ public sealed class MainForm : Form
                     UseDescriptionForTitle = true,
                 };
                 return dlg.ShowDialog(this) == DialogResult.OK ? dlg.SelectedPath : null;
+            }
+
+            case "importTakeout":
+            {
+                using var files = new OpenFileDialog
+                {
+                    Title = "Select Google Takeout ZIP files",
+                    Filter = "Google Takeout ZIP files (*.zip)|*.zip",
+                    Multiselect = true,
+                };
+                if (files.ShowDialog(this) != DialogResult.OK) return null;
+
+                var account = Microsoft.VisualBasic.Interaction.InputBox(
+                    "Google account email for these Takeout files:", "Import Google Takeout", "name@gmail.com").Trim();
+                if (account.Length == 0) return null;
+
+                using var destination = new FolderBrowserDialog
+                {
+                    Description = "Choose the parent folder for the sorted account archive",
+                    UseDescriptionForTitle = true,
+                };
+                if (destination.ShowDialog(this) != DialogResult.OK) return null;
+
+                var selectedFiles = files.FileNames.ToArray();
+                var destinationPath = destination.SelectedPath;
+
+                _importCts?.Cancel();
+                var cts = _importCts = new CancellationTokenSource();
+                _ = Task.Run(() =>
+                {
+                    Push("takeoutStart", new { account, archives = files.FileNames.Length });
+                    try
+                    {
+                        var importer = new TakeoutMailImporter();
+                        var result = importer.ImportArchives(selectedFiles, account, destinationPath,
+                            p => Push("takeoutProgress", p), cts.Token);
+                        _store.Open(result.MailRoot);
+                        var (indexed, removed) = _store.IndexFolder(
+                            (done, total) => Push("indexProgress", new { done, total }), cts.Token);
+                        Push("takeoutEnd", new
+                        {
+                            result.Account, result.MailRoot, result.ReceiptPath, result.Archives,
+                            result.Mailboxes, result.Added, result.Skipped, result.Failed,
+                            result.SourceBytes, result.MailBytes, result.Warnings, result.Errors,
+                            indexed, removed, stats = _store.Stats(),
+                        });
+                    }
+                    catch (OperationCanceledException) { Push("takeoutEnd", new { cancelled = true }); }
+                    catch (Exception ex) { Push("takeoutEnd", new { error = ex.Message }); }
+                    finally
+                    {
+                        _importCts = null;
+                    }
+                }, cts.Token);
+                return true;
             }
 
             case "openFolder":

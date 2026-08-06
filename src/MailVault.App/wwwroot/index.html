@@ -3,13 +3,21 @@
 <head>
 <meta charset="utf-8">
 <title>MailVault</title>
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="styles.css">
 </head>
 <body>
 <div id="app">
   <aside id="sidebar">
-    <h1>Mail<span>Vault</span></h1>
+    <div class="brand-row">
+      <h1>Mail<span>Vault</span></h1>
+      <button id="versionButton" class="version-button button-google-chase" type="button" aria-expanded="false" aria-controls="appFlyout">v1.2.0</button>
+    </div>
     <button id="btnOpen" class="primary">Open backup folder…</button>
+    <button id="btnImportTakeout">Import Takeout ZIPs…</button>
+    <div class="archive-capabilities" aria-label="Takeout intake safeguards">
+      <strong>Large Takeout mode</strong>
+      <span>Multipart checked</span><span>SHA-256 receipt</span><span>Restart safe</span>
+    </div>
     <div id="stats" class="stats"></div>
 
     <nav>
@@ -79,6 +87,20 @@
     </div>
   </section>
 </div>
+<div id="flyoutScrim" class="flyout-scrim" hidden></div>
+<aside id="appFlyout" class="app-flyout" aria-hidden="true" aria-labelledby="appFlyoutTitle">
+  <header class="flyout-header">
+    <div><span class="flyout-kicker">MailVault v1.2.0</span><h2 id="appFlyoutTitle">Application details</h2></div>
+    <button id="closeAppFlyout" class="flyout-close" type="button" aria-label="Close application details">×</button>
+  </header>
+  <div class="flyout-content">
+    <section class="flyout-section"><h3>Settings</h3><p>Offline mode. Intake verifies multipart order, hashes each source ZIP, preserves the originals, and writes dated EML files beneath the selected account archive.</p></section>
+    <section class="flyout-section"><h3>Dependencies</h3><ul><li>WebView2 Runtime</li><li>Writable archive destination</li><li>Takeout ZIPs containing Mail MBOX or EML entries</li></ul></section>
+    <section class="flyout-section"><h3>Requirements</h3><p>Windows x64, enough free space for expanded mail, and an operator-supplied account identity.</p></section>
+    <section class="flyout-section"><h3>Credentials</h3><p>None. MailVault does not connect to Google.</p></section>
+    <section class="flyout-section"><h3>Diagnostics</h3><p>Each import writes source hashes, byte counts, multipart evidence, and entry failures under Gmail\_TakeoutReceipts.</p></section>
+  </div>
+</aside>
 <script src="app.js"></script>
 </body>
 </html>

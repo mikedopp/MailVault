@@ -375,10 +375,13 @@ public sealed class MailStore : IDisposable
         using var ms = new MemoryStream();
         if (att is MimePart mp)
         {
+            if (mp.Content is null) throw new InvalidDataException("Attachment content is missing.");
             mp.Content.DecodeTo(ms);
             return (mp.FileName ?? $"attachment{index}", ms.ToArray());
         }
-        ((MessagePart)att).Message.WriteTo(ms);
+        if (att is not MessagePart messagePart || messagePart.Message is null)
+            throw new InvalidDataException("Attached message content is missing.");
+        messagePart.Message.WriteTo(ms);
         return ($"attached-message{index}.eml", ms.ToArray());
     }
 

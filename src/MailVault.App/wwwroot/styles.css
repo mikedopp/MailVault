@@ -1,0 +1,70 @@
+@import url("style.css");
+
+:root {
+  --bg: #0b0e14;
+  --panel: #121923;
+  --panel2: #172131;
+  --band: #121923;
+  --line: #273443;
+  --border: #273443;
+  --text: #dce7f0;
+  --dim: #9db0bf;
+  --muted: #9db0bf;
+  --accent: #5ba4d9;
+  --gold: #5ba4d9;
+  --gold-soft: #9fd1f3;
+  --focus: #9fd1f3;
+}
+body { font-family: "IBM Plex Mono", "Cascadia Mono", "Segoe UI", monospace; -webkit-font-smoothing: antialiased; }
+header, .brand-row { position: sticky; top: 0; z-index: 10; }
+h1, h2, h3 { text-wrap: balance; }
+p, li { text-wrap: pretty; }
+button { min-height: 40px; transition: border-color 180ms ease-out, background-color 180ms ease-out, transform 120ms ease-out; }
+button:active:not(:disabled) { transform: scale(.96); }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.stats, .stat, .card .v, #count, #selN, #resultmeta { font-variant-numeric: tabular-nums; }
+.brand-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; background: var(--panel); }
+.archive-capabilities { margin: 10px 0 14px; padding: 10px; display: flex; flex-wrap: wrap; gap: 6px; background: #0e151e; border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 5px 18px rgba(0,0,0,.18); }
+.archive-capabilities strong { flex-basis: 100%; color: var(--text); font-size: 12px; }
+.archive-capabilities span { padding: 3px 6px; color: var(--dim); background: var(--panel2); border-radius: 4px; font-size: 10px; }
+
+@property --google-chase-angle { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+.button-google-chase {
+  --google-chase-angle: 0deg;
+  border: 1px solid transparent;
+  background:
+    linear-gradient(#172131, #172131) padding-box,
+    conic-gradient(
+      from var(--google-chase-angle),
+      transparent 0deg 4deg, rgba(66,133,244,.18) 8deg, #4285f4 16deg, rgba(66,133,244,.18) 28deg,
+      transparent 40deg 94deg, rgba(234,67,53,.18) 98deg, #ea4335 106deg, rgba(234,67,53,.18) 118deg,
+      transparent 130deg 184deg, rgba(251,188,5,.18) 188deg, #fbbc05 196deg, rgba(251,188,5,.18) 208deg,
+      transparent 220deg 274deg, rgba(52,168,83,.18) 278deg, #34a853 286deg, rgba(52,168,83,.18) 298deg,
+      transparent 310deg 360deg
+    ) border-box,
+    linear-gradient(var(--line), var(--line)) border-box;
+  animation: google-color-chase 3.2s linear infinite;
+}
+.button-google-chase:hover, .button-google-chase:focus-visible { border-color: transparent; outline: 2px solid var(--focus); outline-offset: 2px; }
+.button-google-chase:disabled { animation: none; border-color: var(--line); background: #172131; }
+@keyframes google-color-chase { to { --google-chase-angle: 360deg; } }
+
+.version-button { min-height: 28px; padding: 3px 9px; border-radius: 999px; color: var(--text); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.flyout-scrim { position: fixed; inset: 0; z-index: 90; background: rgba(5,8,11,.66); backdrop-filter: blur(2px); }
+.app-flyout { position: fixed; z-index: 100; top: 10px; right: 10px; bottom: 10px; width: min(460px, calc(100vw - 20px)); overflow: hidden; color: var(--text); background: var(--band); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 22px 70px rgba(0,0,0,.6); opacity: 0; transform: translateX(calc(100% + 24px)); transition: transform 220ms cubic-bezier(.2,0,0,1), opacity 180ms ease-out; pointer-events: none; }
+.app-flyout[aria-hidden="false"] { opacity: 1; transform: translateX(0); pointer-events: auto; }
+.has-flyout { overflow: hidden; }
+.flyout-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 18px; border-bottom: 1px solid var(--line); position: static; }
+.flyout-header h2 { margin: 3px 0 0; }
+.flyout-kicker { color: var(--accent); font-size: 11px; font-weight: 700; }
+.flyout-close { min-width: 40px; min-height: 40px; border: 0; background: transparent; color: var(--muted); font-size: 20px; cursor: pointer; }
+.flyout-content { height: calc(100% - 73px); padding: 14px; overflow-y: auto; }
+.flyout-section { margin-bottom: 10px; padding: 13px; background: var(--panel); border: 1px solid var(--line); border-radius: 7px; }
+.flyout-section h3 { margin: 0 0 9px; color: var(--accent); font-size: 13px; }
+.flyout-section p, .flyout-section li { color: var(--dim); font-size: 12px; line-height: 1.55; }
+.flyout-section ul { margin: 0; padding-left: 18px; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+  .button-google-chase { animation: none; }
+  .app-flyout { transition: none; }
+}

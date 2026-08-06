@@ -1,0 +1,48 @@
+{
+  "title": "MailVault",
+  "spaceId": "3149234181",
+  "parentPageId": "3149234224",
+  "status": "draft",
+  "bodyMarkdownPath": "docs\\confluence\\mailvault_confluence_draft.md",
+  "bodyStoragePath": "",
+  "repoTargets": [
+    {
+      "type": "azure-repos",
+      "org": "AMWINSGST",
+      "project": "AmLINK-Teams",
+      "repo": "amwins-devops-scripts",
+      "path": "stuff/MicDrop/mailvault"
+    },
+    {
+      "type": "github",
+      "owner": "doppmike",
+      "repo": "mailvault"
+    }
+  ],
+  "gifAttachmentPlan": [
+    {
+      "fileName": "mailvault-launch-dependencies.gif",
+      "section": "Launch And Dependencies",
+      "status": "placeholder"
+    },
+    {
+      "fileName": "mailvault-workflow-preview.gif",
+      "section": "Workflow Preview",
+      "status": "placeholder"
+    },
+    {
+      "fileName": "mailvault-operator-receipt.gif",
+      "section": "Receipt And Diagnostics",
+      "status": "placeholder"
+    }
+  ],
+  "publishWorkflow": [
+    "Open \\ConfluenceForge\\publish\\ConfluenceForge.exe.",
+    "Confirm the Confluence credential slot is confluence-api.",
+    "Create a page with the title from this packet under parentPageId 3149234224.",
+    "Paste docs\\confluence\\mailvault_confluence_draft.md into Free Text / Paste.",
+    "Click Generate Markup.",
+    "Attach reviewed GIFs from docs\\media\\gifs.",
+    "Create as draft first; do not publish current/stable without explicit approval."
+  ]
+}
